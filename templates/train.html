@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Treinamento do Modelo</title>
+</head>
+<body>
+    <h1>Treinamento do Modelo</h1>
+    {% if accuracy is not none %}
+        <p>Acurácia: {{ accuracy }}%</p>
+        <h2>Matriz de Confusão</h2>
+        <table border="1">
+            <tr>
+                <th>Esperado / Previsto</th>
+                <th>Não Gosta</th>
+                <th>Gosta</th>
+            </tr>
+            <tr>
+                <td>Não Gosta</td>
+                <td>{{ conf_matrix[0][0] }}</td>
+                <td>{{ conf_matrix[0][1] }}</td>
+            </tr>
+            <tr>
+                <td>Gosta</td>
+                <td>{{ conf_matrix[1][0] }}</td>
+                <td>{{ conf_matrix[1][1] }}</td>
+            </tr>
+        </table>
+    {% endif %}
+    
+    <h2>Preencher Dados para Previsão</h2>
+    <form method="POST">
+        <label>Gender:</label>
+        <select name="Gender">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="non-binary">Non-binary</option>
+        </select><br>
+        
+        <label>Education Level:</label>
+        <select name="Education_Level">
+            <option value="bachelor">Bachelor</option>
+            <option value="master">Master</option>
+            <option value="high school">High School</option>
+            <option value="doctorate">Doctorate</option>
+        </select><br>
+        
+        <label>Preferred Activities:</label>
+        <select name="Preferred_Activities">
+            <option value="skiing">Skiing</option>
+            <option value="swimming">Swimming</option>
+            <option value="hiking">Hiking</option>
+            <option value="sunbathing">Sunbathing</option>
+        </select><br>
+        
+        <label>Location:</label>
+        <select name="Location">
+            <option value="urban">Urban</option>
+            <option value="suburban">Suburban</option>
+            <option value="rural">Rural</option>
+        </select><br>
+        
+        <label>Favorite Season:</label>
+        <select name="Favorite_Season">
+            <option value="summer">Summer</option>
+            <option value="fall">Fall</option>
+            <option value="winter">Winter</option>
+            <option value="spring">Spring</option>
+        </select><br>
+        
+        <label>Pets:</label>
+        <select name="Pets">
+            <option value="0">Yes</option>
+            <option value="1">No</option>
+        </select><br>
+        
+        <label>Environmental Concerns:</label>
+        <select name="Environmental_Concerns">
+            <option value="0">Yes</option>
+            <option value="1">No</option>
+        </select><br>
+        
+        <button type="submit" name="predict">Prever Preferência</button>
+    </form>
+
+    {% if prediction_result is not none %}
+        <h3>Resultado da Previsão: {{ prediction_result }}</h3>
+    {% endif %}
+</body>
+</html>
