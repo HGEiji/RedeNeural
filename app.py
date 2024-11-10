@@ -1,67 +1,81 @@
 # Importando as bibliotecas necessárias
 from flask import Flask, request, render_template, redirect, url_for, flash
-# Flask é um framework web para criar aplicações. 
-# O 'request' é usado para acessar dados de formulários e arquivos enviados pelo usuário.
-# O 'render_template' é usado para renderiza arquivos HTML. 
-# O 'redirect' redireciona para outra página, 
-# O 'flash' exibe mensagens para o usuário.
-
 from werkzeug.utils import secure_filename
-# 'secure_filename'  é uma função que garante que os nomes dos arquivos enviados sejam seguros (sem caracteres problemáticos).
-
 import os
 import joblib
-# 'os' permite interagir com o sistema operacional, como salvar arquivos. 
-# 'joblib' é usado para salvar e carregar objetos Python, como modelos treinados.
 
+# Importando funções do diretório 'utils'
 from utils.data_processing import preprocess_data, load_data
 from utils.model_train import train_and_save_model
 from utils.prediction import make_prediction, load_model
-# Estas importações são funções criados nos arquivos de data_processing, model_train e prediction
 
 # Configurações do Flask
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'  # Pasta onde os arquivos serão armazenados.
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')  # Caminho absoluto para a pasta 'uploads'
 app.secret_key = 'secret_key'  # Chave secreta necessária para usar sessões e mensagens flash no Flask.
 
 # Rota para fazer o upload de arquivos (index)
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
-    if request.method == 'POST':  # Verifica se o método da requisição foi enviado.
-        file = request.files['file']  # Pega o arquivo enviado.
-        if file:  # Se o arquivo foi enviado, ele continua.
-            filename = secure_filename(file.filename)  # Garente que o nome do arquivo é seguro.
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)  # Cria o caminho para o arquivo.
-            file.save(filepath)  # Salva o arquivo na pasta uploads.
-            flash("Arquivo enviado com sucesso!", "success")  # Mostra uma mensagem de sucesso.
-            return redirect(url_for('train_model', filepath=filepath))  # Redireciona o para a página de treinamento.
-    return render_template('upload.html')  # Exibe o upload.html.
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            flash("Arquivo enviado com sucesso!", "success")
+            return redirect(url_for('train_model', filepath=filepath))
+    return render_template('upload.html')
 
-# Rota para treinar o modelo e fazer previsões
-@app.route('/train', methods=['GET', 'POST'])
-def train_model():
-    filepath = request.args.get('filepath')  # Pega o caminho do arquivo da URL.
-    data = load_data(filepath)  # Carrega os dados do arquivo enviado.
 
-    # Pré-processamento dos dados separando em variáveis de entrada (X) e saída (y)
+# Função para treinar o modelo
+def train_model_process(filepath):
+    # Carrega e pré-processa os dados
+    data = load_data(filepath)
     X, y, scaler, label_encoders = preprocess_data(data)
 
-    # Dividindo os dados em conjuntos de treinamento e teste (80% treino e 20% teste)
+    # Divide os dados em conjuntos de treinamento e teste
     from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Treinando o modelo e salvando o modelo treinado.
+    # Treina o modelo e salva o modelo treinado
     accuracy, conf_matrix = train_and_save_model(X_train, y_train, X_test, y_test, label_encoders)
 
-    # Salvando depois ser usado para fazer previsões.
+    # Salva o scaler e os codificadores de rótulo para serem usados na predição
     joblib.dump(scaler, 'model/scaler.joblib')
     joblib.dump(label_encoders, 'model/label_encoders.joblib')
 
-    prediction_result = None  # Inicia a variável para armazenar o resultado da previsão.
+    return accuracy, conf_matrix
 
-    # Verifica se o formulário de previsão foi enviado.
-    if request.method == 'POST' and 'predict' in request.form:
-        # Pega os dados de entrada a partir do formulário.
+
+# Rota para treinar o modelo e exibir resultados
+@app.route('/train', methods=['GET', 'POST'])
+def train_model():
+    filepath = request.args.get('filepath')
+    accuracy, conf_matrix = train_model_process(filepath)
+    flash(f"Treinamento completo. Acurácia: {accuracy:.2f}%", "success")
+    return render_template('train.html', accuracy=accuracy, conf_matrix=conf_matrix)
+
+
+# Função para fazer a predição
+def predict_process(input_data):
+    # Carrega o modelo e os pré-processadores
+    model = load_model()
+    scaler = joblib.load('model/scaler.joblib')
+    label_encoders = joblib.load('model/label_encoders.joblib')
+
+    # Realiza a previsão
+    prediction = make_prediction(model, input_data, label_encoders, scaler)
+    return "Gosta de atividade ao ar livre" if prediction == 1 else "Não gosta de atividade ao ar livre"
+
+
+# Rota para a página de predição
+@app.route('/predict', methods=['GET', 'POST'])
+def predict():
+    prediction_result = None  # Inicializa o resultado da predição como None
+
+    if request.method == 'POST':
+        # Coleta os dados do formulário
         input_data = {
             "Gender": request.form['Gender'],
             "Education_Level": request.form['Education_Level'],
@@ -72,22 +86,13 @@ def train_model():
             "Environmental_Concerns": int(request.form['Environmental_Concerns'])
         }
 
-        # Carrega o modelo treinado.
-        model = load_model()
-        
-        # Faz a previsão com o modelo carregado, usando os dados de entrada.
-        prediction = make_prediction(model, input_data, label_encoders, scaler)
-        
-        # Exibe o resultado da previsão: se a pessoa gosta de atividades ao ar livre ou não
-        prediction_result = "Gosta de atividade ao ar livre" if prediction == 1 else "Não gosta de atividade ao ar livre"
+        # Chama o processo de predição
+        prediction_result = predict_process(input_data)
 
-    # Exibe uma mensagem com a acurácia do modelo treinado
-    flash(f"Treinamento completo. Acurácia: {accuracy:.2f}%", "success")
-    
-    # Carrega a página de treinamento, mostrando a acurácia e a matriz de confusão e o do resultado da previsão
-    return render_template('train.html', accuracy=accuracy, conf_matrix=conf_matrix, prediction_result=prediction_result)
+    return render_template('predict.html', prediction_result=prediction_result)
 
-# Código que garanti que as pastas, uploads e models existem.
+
+# Código que garante que as pastas 'uploads' e 'model' existam.
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
