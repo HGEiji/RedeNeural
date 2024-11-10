@@ -4,15 +4,4 @@ numpy
 scikit-learn
 openpyxl
 joblib
-
-
-
-
-
-Gender: female
-Education_Level: master
-Preferred_Activities: hiking
-Location: suburban
-Favorite_Season: spring
-Pets: 0 (tem animais de estimação)
-Environmental_Concerns: 1 (se importa com questões ambientais)
+tensorflow

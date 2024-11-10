@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 import os
+import joblib
 from utils.data_processing import preprocess_data, load_data
 from utils.model_train import train_and_save_model
 from utils.prediction import make_prediction, load_model
@@ -25,8 +26,20 @@ def upload_file():
 def train_model():
     filepath = request.args.get('filepath')
     data = load_data(filepath)
-    X, y = preprocess_data(data)
-    accuracy, conf_matrix = train_and_save_model(X, y)
+    
+    # Processar os dados e dividir entre X (entradas) e y (saídas)
+    X, y, scaler, label_encoders = preprocess_data(data)
+    
+    # Divisão do dataset em treino e teste
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Treinamento do modelo e salvamento
+    accuracy, conf_matrix = train_and_save_model(X_train, y_train, X_test, y_test, label_encoders)
+
+    # Salvar scaler e label_encoders para uso posterior
+    joblib.dump(scaler, 'model/scaler.joblib')
+    joblib.dump(label_encoders, 'model/label_encoders.joblib')
     
     prediction_result = None  # Inicialize a variável para a previsão
 
@@ -41,8 +54,8 @@ def train_model():
             "Pets": int(request.form['Pets']),
             "Environmental_Concerns": int(request.form['Environmental_Concerns'])
         }
-        model = load_model()
-        prediction = make_prediction(model, input_data)
+        model = load_model()  # Carregar o modelo já treinado
+        prediction = make_prediction(model, input_data, label_encoders, scaler)
         prediction_result = "Gosta de atividade ao ar livre" if prediction == 1 else "Não gosta de atividade ao ar livre"
     
     flash(f"Treinamento completo. Acurácia: {accuracy:.2f}%", "success")
